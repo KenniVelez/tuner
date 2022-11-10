@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "tuner"
+version = "0.1.0"
+description = "analyse mic input (frequency analysis) to be used to tune instruments"
+authors = ["Richard Hartmann"]
+
+[tool.poetry.dependencies]
+python = "~3.9"
+PyQt5 = "5.15.3"
+pyqtgraph = "0.11"   # newer version requires newer Qt5 libs
+matplotlib = "^3.5.2"
+numpy = "^1.23"
+SoundCard = "^0.4.2"
+
+
+[tool.poetry.dev-dependencies]
+notebook = "^6.5.2"
+
+
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"

@@ -1,0 +1,72 @@
+\documentclass[10pt]{scrartcl}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{amsmath, amssymb}
+\usepackage{a4wide}
+\usepackage{placeins}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\hypersetup{
+    colorlinks,
+    linkcolor   = blue,
+    urlcolor    = blue,
+    citecolor   = blue,
+    anchorcolor = blue
+}
+
+%opening
+\title{
+Tuner \\
+{\small frequency analysis of the microphone input suitable to tune instruments}
+}
+\author{by Richard Hartmann}
+
+\renewcommand{\i}{\mathrm{i}}
+\newcommand*{\defeq}{\mathrel{\vcenter{\baselineskip0.5ex \lineskiplimit0pt
+                     \hbox{\scriptsize.}\hbox{\scriptsize.}}}=}
+\newcommand*{\eqdef}{=\mathrel{\vcenter{\baselineskip0.5ex \lineskiplimit0pt
+                     \hbox{\scriptsize.}\hbox{\scriptsize.}}}}
+                     
+\newcommand{\kll}[1]{\textit{#1}{,}{,}}
+\newcommand{\kl}[1]{\textit{#1}{,}}
+\renewcommand{\k}[1]{\textit{#1}}
+\newcommand{\kh}[1]{\textit{#1}{'}}
+\newcommand{\khh}[1]{\textit{#1}{'}{'}}
+\newcommand{\khhh}[1]{\textit{#1}{'}{'}{'}}
+\newcommand{\khhhh}[1]{\textit{#1}{'}{'}{'}{'}}
+\newcommand{\khhhhh}[1]{\textit{#1}{'}{'}{'}{'}{'}}
+
+\begin{document}
+
+\maketitle
+\newpage
+
+\tableofcontents
+\newpage
+
+\section{Theory}
+
+\subsection{Piano Keys -- Well-Tempered Tuning}
+
+Starting at some reference key, e.g. the key \k{a} with a frequency of 440Hz, the key an octave higher has twice that frequency. 
+Thus, the key an octave lower, half the frequency.
+In twelve-tone equal temperament an octave is made up of twelve steps with frequencies that are equally spaced in a logarithmic scale.
+So the frequency of the key, labeled in steps above/below the reference key \k{a} at frequency  440Hz is given by
+\begin{equation}
+    f_i = 2^{i/12} 440 \mathrm{Hz} \; .
+\end{equation}
+On a standard piano with 88 keys the reference key \k{a} is the 49th key.
+So labeling the key with index $n$ from low to high yields the alternative expression
+\begin{equation}
+    f_n = 2^{(n-49)/12} 440 \mathrm{Hz} \; .
+\end{equation}
+
+This means, that the lowest key, i.e. the \kll{a} has a frequency of $f_1 = 27.5$Hz which amount to a period of $T_1 = 1/f_1 = 36.4\mathrm{ms}$. 
+For the highest key \khhhh{c} it follows $f_{88} = 4186$Hz and $T = 0.239\mathrm{ms}$.
+
+
+
+
+
+
+\end{document}
