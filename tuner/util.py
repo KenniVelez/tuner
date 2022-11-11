@@ -1,5 +1,6 @@
 import soundcard as sc
 import numpy as np
+from scipy.optimize import least_squares
 import threading
 import logging
 
@@ -99,6 +100,70 @@ class RecBuff(object):
             self.stopEvent.set()
             self.recThread.join()
             logging.debug('_rec thread has stopped')
+
+
+def fourier_int(signal_t, t, w):
+    """
+    approximate the finite Fourier integral by discrete trapezoidal sum
+    """
+    return np.trapz(signal_t * np.exp(-1j*w*t), t)
+
+
+def n_harmonic_function(t, omg_base, amp, phi):
+    """
+    Calculate the N-harmonic function with base frequency 'omg_base'.
+
+    'amp' and 'phi' are the lists (as numpy arrays) of amplitudes and phases of the (higher) harmonic(s), .i.e.
+        s(t) = sum_n=1^N amp[n] cos(n * omg_base * t + phi[n]) .
+
+    This function signature is intended to be used for curve_fit (leqast_squares)
+    """
+    n = np.arange(1, len(amp)+1)
+    t = t.reshape(-1, 1)     # new axes for t, to use numpy sum for the summation over n
+    return np.sum(amp * np.cos(n * omg_base * t + phi), axis=1)
+
+
+def n_harmonic_residual(x, t, signal_t, N):
+    omg_base = x[0]
+    amp = x[1:N+1]
+    phi = x[N+1:2*N+1]
+    return n_harmonic_function(t, omg_base, amp, phi) - signal_t
+
+
+def fit_harmonic_function(signal_t, t, omg_guess, N):
+    """
+    Fit the N-harmonic function to the signal data.
+
+    :param signal_t: the signal data
+    :param t: the time axes of the signal data
+    :param omg_guess: an iniital guess of the base frequency (in radians per sec)
+    :param: the number of (higher) harmonics, N=2 means base frequency and the first higher harmonic.
+    """
+
+    n = np.arange(1, N+1)
+    w = n*omg_guess
+    S_wi = np.asarray([fourier_int(signal_t, t, wi) for wi in w])
+    amp = np.abs(S_wi)
+    phi = np.angle(S_wi)
+
+    r = least_squares(
+        fun=n_harmonic_residual,
+        x0=np.concatenate(([omg_guess], amp, phi)),
+        args=(t, signal_t, N)
+    )
+
+    if not r.success:
+        raise RuntimeError("least_squares did not converge")
+
+    omg_base = r.x[0]
+    amp = r.x[1:N+1]
+    phi = r.x[N+2:2*N+1]
+
+    return omg_base, amp, phi, r.optimality
+
+
+
+
 
 
 

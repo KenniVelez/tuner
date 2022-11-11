@@ -10,6 +10,7 @@ PyQt5 = "5.15.3"
 pyqtgraph = "0.11"   # newer version requires newer Qt5 libs
 matplotlib = "^3.5.2"
 numpy = "^1.23"
+scipy = "^1.9.3"
 SoundCard = "^0.4.2"
 
 
