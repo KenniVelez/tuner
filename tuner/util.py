@@ -5,8 +5,8 @@ import threading
 import logging
 
 
-notes = ['a', 'a#', 'h', 'c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#']
-notes_piano = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'h']
+keys = ['a', 'a#', 'h', 'c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#']
+keys_piano = ['c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#', 'h']
 
 
 def freq_of_key_relative_to_a(i, freq_a=440):
@@ -34,7 +34,7 @@ def note_to_key(note, level):
 
     The string of a note can be 'c', 'c#', 'd', 'd#', 'e', 'f', 'f#', 'g', 'g#', 'a', 'a#' or 'h'.
     """
-    i = notes.index(note)
+    i = keys.index(note)
     return 12*level + i - 12*(i>2)
 
 
@@ -107,6 +107,14 @@ def fourier_int(signal_t, t, w):
     approximate the finite Fourier integral by discrete trapezoidal sum
     """
     return np.trapz(signal_t * np.exp(-1j*w*t), t)
+
+
+def fourier_int_array(signal_t, t, w):
+    """
+    approximate the finite Fourier integral by discrete trapezoidal sum for an array of
+    frequencies w
+    """
+    return np.trapz(signal_t * np.exp(-1j*w.reshape(-1, 1)*t), t, axis=1)
 
 
 def n_harmonic_function(t, omg_base, amp, phi):

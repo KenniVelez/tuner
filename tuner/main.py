@@ -16,7 +16,7 @@ import time
 import threading
 
 import soundcard as sc
-import tuner_util
+import util
 import logging
 
 logging.basicConfig(level=logging.DEBUG)
@@ -32,32 +32,81 @@ def round_to_sig_digets(x, n=3):
 
 class App(wdg.QMainWindow):
     def __init__(self):
-        self.refFreq = 440
 
-        self.note = "c"
+        # default values for the fundamental parameters
+        self.ref_freq = 440
+        self.key = "c"
         self.level = 0
-        self.targetFreq = tuner_util.note_to_freq(
-            note=self.note, level=self.level, a=self.refFreq
-        )
+        self.num_cyc = 15
+        self.smpl_per_cyc = 12.3
 
-        self.num_cyc = 25
-        self.smpl_per_cyc = 35
+        # some constants for the recoding buffer
+        self.block_size = 512
+        self.num_frames = 128
 
-        self.recLength = self.num_cyc / self.targetFreq
-        self.samplerate = int(self.smpl_per_cyc * self.targetFreq)
-        self.blocksize = 512
-        self.numframes = 128
+        # calculated on calling calculate_parameters
+        self.rec_length = None
+        self.sample_rate = None
+        self.target_freq = None
+
+        self.calculate_parameters()
 
         super().__init__()
         self.title = "Tuner"
         self.initUI()
 
+        self.update_targetFreq()
+
+        self.refFreqEdit.editingFinished.connect(self.update_targetFreq)
+        self.keyEdit.editingFinished.connect(self.update_targetFreq)
+        self.levelEdit.editingFinished.connect(self.update_targetFreq)
+
+        self.numCycEdit.editingFinished.connect(self.update_num_cyc)
+        self.smpl_per_cycEdit.editingFinished.connect(self.update_smpl_per_cyc)
+
+
+        self.nextNoteBtn.clicked.connect(self.nextTargetFreq)
+        self.prevNoteBtn.clicked.connect(self.prevTargetFreq)
+
+    def calculate_parameters(self):
+        """
+        calculate parameters that follow from the fundamental parameters.
+
+        based on the class properties
+
+            self.refFreq
+            self.key
+            self.level
+            self.num_cyc
+            self.smpl_per_cyc
+
+        calculate
+
+            self.recLength
+            self.samplerate
+            self.targetFreq
+        """
+        self.target_freq = util.note_to_freq(
+            note=self.key, level=self.level, freq_a=self.ref_freq
+        )
+        self.rec_length = self.num_cyc / self.target_freq
+        self.sample_rate = int(self.smpl_per_cyc * self.target_freq)
+
+
+
     def initUI(self):
+
+        ###########################
+        #   Window
+        ###########################
         self.setWindowTitle(self.title)
         self.setGeometry(0, 0, 1600, 1000)
 
-        # setting on the right
-        self.settingsGroup = wdg.QGroupBox(title="settings")
+        ###########################
+        #   recording / sampling
+        ###########################
+        # settings on the right
+        self.settingsGroup = wdg.QGroupBox(title="recording / sampling")
         self.settingsGroup.setMinimumWidth(300)
         self.settingsGroup.setMaximumWidth(300)
         self.settingsLayout = wdg.QVBoxLayout()
@@ -81,25 +130,24 @@ class App(wdg.QMainWindow):
         self.settingsLayout.addWidget(self.refFreqLabel)
 
         # refFreqLabel edit
-        self.refFreqEdit = wdg.QLineEdit(str(self.refFreq))
+        self.refFreqEdit = wdg.QLineEdit(str(self.ref_freq))
         self.settingsLayout.addWidget(self.refFreqEdit)
 
         # rec length Label
-        self.recLegthLabel = wdg.QLabel("recoding length (in s)")
+        self.recLegthLabel = wdg.QLabel("recoding length")
         self.settingsLayout.addWidget(self.recLegthLabel)
 
-        # rec length edit
-        self.recLengthEdit = wdg.QLineEdit(str(round_to_sig_digets(self.recLength)))
-        self.settingsLayout.addWidget(self.recLengthEdit)
+        # rec length Value Label
+        self.recLengthValueLabel = wdg.QLabel()
+        self.settingsLayout.addWidget(self.recLengthValueLabel)
 
         # samplerate Label
-        self.samplerateLabel = wdg.QLabel("samplerate (in Hz)")
+        self.samplerateLabel = wdg.QLabel("sampling rate")
         self.settingsLayout.addWidget(self.samplerateLabel)
 
-        # samplerate edit
-
-        self.samplerateEdit = wdg.QLineEdit(str(self.samplerate))
-        self.settingsLayout.addWidget(self.samplerateEdit)
+        # samplerate Value edit
+        self.samplerateValueLabel = wdg.QLabel("")
+        self.settingsLayout.addWidget(self.samplerateValueLabel)
 
         # num_cyc Label
         self.numCycLabel = wdg.QLabel("number of cycles (wrt to target freq.)")
@@ -117,55 +165,43 @@ class App(wdg.QMainWindow):
         self.smpl_per_cycEdit = wdg.QLineEdit(str(self.smpl_per_cyc))
         self.settingsLayout.addWidget(self.smpl_per_cycEdit)
 
-        # blocksize Label
-        self.blocksizeLabel = wdg.QLabel("blocksize")
-        self.settingsLayout.addWidget(self.blocksizeLabel)
-
-        # blocksize edit
-        self.blocksizeEdit = wdg.QLineEdit(str(self.blocksize))
-        self.settingsLayout.addWidget(self.blocksizeEdit)
-
-        # numframes Label
-        self.numframesLabel = wdg.QLabel("numframes")
-        self.settingsLayout.addWidget(self.numframesLabel)
-
-        # numframes edit
-        self.numframesEdit = wdg.QLineEdit(str(self.numframes))
-        self.settingsLayout.addWidget(self.numframesEdit)
-
         # put everything together
         self.settingsLayout.addStretch(1)
         self.settingsGroup.setLayout(self.settingsLayout)
 
-        # note selection
-        self.noteSelGroup = wdg.QGroupBox(title="select note")
-        self.noteSelGroup.setMinimumWidth(300)
-        self.noteSelGroup.setMaximumWidth(300)
-        self.noteSelLayout = wdg.QVBoxLayout()
+        ###########################
+        #   key selection
+        ###########################
 
-        # note Label
-        self.noteLabel = wdg.QLabel("note")
-        self.noteSelLayout.addWidget(self.noteLabel)
+        # key selection
+        self.keySelGroup = wdg.QGroupBox(title="select key")
+        self.keySelGroup.setMinimumWidth(300)
+        self.keySelGroup.setMaximumWidth(300)
+        self.keySelLayout = wdg.QVBoxLayout()
 
-        # note edit
-        self.noteEdit = wdg.QLineEdit(self.note)
-        self.noteSelLayout.addWidget(self.noteEdit)
+        # key Label
+        self.keyLabel = wdg.QLabel("key")
+        self.keySelLayout.addWidget(self.keyLabel)
+
+        # key edit
+        self.keyEdit = wdg.QLineEdit(self.key)
+        self.keySelLayout.addWidget(self.keyEdit)
 
         # level Label
         self.levelLabel = wdg.QLabel("level")
-        self.noteSelLayout.addWidget(self.levelLabel)
+        self.keySelLayout.addWidget(self.levelLabel)
 
         # level edit
         self.levelEdit = wdg.QLineEdit(str(self.level))
-        self.noteSelLayout.addWidget(self.levelEdit)
+        self.keySelLayout.addWidget(self.levelEdit)
 
         # target freq Label
         self.targetFreqLabel = wdg.QLabel("target frequency")
-        self.noteSelLayout.addWidget(self.targetFreqLabel)
+        self.keySelLayout.addWidget(self.targetFreqLabel)
 
         # target freq Label
         self.targetFreqShow = wdg.QLabel()
-        self.noteSelLayout.addWidget(self.targetFreqShow)
+        self.keySelLayout.addWidget(self.targetFreqShow)
 
         self.prevNoteBtn = wdg.QPushButton("prev")
         self.prevNoteBtn.setMaximumWidth(50)
@@ -180,40 +216,15 @@ class App(wdg.QMainWindow):
         whl = wdg.QWidget()
         whl.setLayout(hl)
 
-        self.noteSelLayout.addWidget(whl)
-
-        self.update_targetFreq()
-
-        self.refFreqEdit.editingFinished.connect(self.update_targetFreq)
-        self.noteEdit.editingFinished.connect(self.update_targetFreq)
-        self.levelEdit.editingFinished.connect(self.update_targetFreq)
-
-        self.plottingtimer = None
-        self.recLengthEdit.editingFinished.connect(self.update_recLength)
-        self.samplerateEdit.editingFinished.connect(self.update_samplingrate)
-        self.numCycEdit.editingFinished.connect(self.update_num_cyc)
-        self.smpl_per_cycEdit.editingFinished.connect(self.update_smpl_per_cyc)
-        self.blocksizeEdit.editingFinished.connect(self.update_blocksize)
-        self.numframesEdit.editingFinished.connect(self.update_numframes)
-
-
-        self.nextNoteBtn.clicked.connect(self.nextTargetFreq)
-        self.prevNoteBtn.clicked.connect(self.prevTargetFreq)
+        self.keySelLayout.addWidget(whl)
 
         # put everything together
-        self.noteSelLayout.addStretch(1)
-        self.noteSelGroup.setLayout(self.noteSelLayout)
+        self.keySelLayout.addStretch(1)
+        self.keySelGroup.setLayout(self.keySelLayout)
 
-        # the matplotlib canvas
-        self.time_plot = None
-
-        # self.plotCanvan = FreqCanvas(parent=None, width=5, height=4)
-        # self.plotCanvan.move(0, 0)
-
-        # self.scene = wdg.QGraphicsScene()
-        # self.scene.addText("Hallo")
-        # self.view = wdg.QGraphicsView(self.scene)
-
+        ###########################
+        #   Graphs
+        ###########################
         self.grWidget = pg.GraphicsLayoutWidget()
         self.plot_freq_base = self.grWidget.addPlot(row=0, col=0)
         p2 = self.grWidget.addPlot(row=0, col=1)
@@ -224,14 +235,14 @@ class App(wdg.QMainWindow):
         self.mainLayout = wdg.QGridLayout()
         self.mainLayout.addWidget(self.grWidget, 0, 0, 2, 1)
         self.mainLayout.addWidget(self.settingsGroup, 0, 1, 1, 1)
-        self.mainLayout.addWidget(self.noteSelGroup, 1, 1, 1, 1)
+        self.mainLayout.addWidget(self.keySelGroup, 1, 1, 1, 1)
 
         self.mainWidget = wdg.QWidget()
         self.mainWidget.setLayout(self.mainLayout)
         self.setCentralWidget(self.mainWidget)
 
-        self.buf = tuner_util.RecBuff(
-            recDev=self.currentMic, samplerate=self.samplerate, length=self.recLength
+        self.buf = util.RecBuff(
+            recDev=self.currentMic, samplerate=self.sample_rate, length=self.rec_length
         )
         self.buf.start_rec()
 
@@ -252,17 +263,31 @@ class App(wdg.QMainWindow):
         # self.plotThread.start()
         self.plottingtimer = QTimer()
         self.plottingtimer.timeout.connect(self.draw)
-        self.plottingtimer.start(5)
+        #self.plottingtimer.start(5)
 
         self.show()
 
+    def update_labels(self):
+        """
+        write sample_rate, rec_length and target_freq to the appropriate labels
+        """
+        self.recLengthValueLabel.setText("{:.3g}ms".format(self.rec_length*1000))
+        self.samplerateValueLabel.setText("{}/s".format(self.sample_rate))
+        self.targetFreqShow.setText("{:.2f} Hz".format(self.target_freq))
+
+
+    def param_changed(self):
+        self.calculate_parameters()
+        self.update_labels()
+
+
     def update_targetFreq(self):
-        s = self.noteEdit.text()
-        if s in tuner_util.notes:
-            self.note = s
-            self.noteEdit.setStyleSheet("QLineEdit { background: rgb(255, 255, 255) }")
+        s = self.keyEdit.text()
+        if s in util.keys:
+            self.key = s
+            self.keyEdit.setStyleSheet("QLineEdit { background: rgb(255, 255, 255) }")
         else:
-            self.noteEdit.setStyleSheet(
+            self.keyEdit.setStyleSheet(
                 "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
             )
             return False
@@ -283,7 +308,7 @@ class App(wdg.QMainWindow):
             return False
 
         try:
-            self.refFreq = float(self.refFreqEdit.text())
+            self.ref_freq = float(self.refFreqEdit.text())
             self.refFreqEdit.setStyleSheet(
                 "QLineEdit { background: rgb(255, 255, 255) }"
             )
@@ -293,82 +318,12 @@ class App(wdg.QMainWindow):
             )
             return False
 
-        self.targetFreq = tuner_util.note_to_freq(
-            note=self.note, level=self.level, a=self.refFreq
-        )
-        self.targetFreqShow.setText("{:.2f} Hz".format(self.targetFreq))
+        self.param_changed()
         logging.debug(
-            "new input: target frequency set to {:.2f} HZ".format(self.targetFreq)
+            "new input: target frequency set to {:.2f} HZ".format(self.target_freq)
         )
-
-    def modTargetFreq(self, step):
-        i = tuner_util.notes_piano.index(self.note) + step
-        self.level += i // 12
-        self.note = tuner_util.notes_piano[i % 12]
-
-        self.noteEdit.setText(self.note)
-        self.levelEdit.setText(str(self.level))
-
-        self.targetFreq = tuner_util.note_to_freq(
-            note=self.note, level=self.level, a=self.refFreq
-        )
-        self.targetFreqShow.setText("{:.2f} Hz".format(self.targetFreq))
-        logging.debug(
-            "mod target freq (step {}): target frequency set to {:.2f} HZ".format(
-                step, self.targetFreq
-            )
-        )
-        
-    def process_new_TargetFreq(self):
-        self.recLength = self.num_cyc / self.targetFreq
-        self.samplerate = int(self.smpl_per_cyc * self.targetFreq)
-        
-        self.recLegthLabel.setText(str(round_to_sig_digets(self.recLength)))
-        
-
-    def update_recLength(self):
-        if not self.plottingtimer:
-            return
-        try:
-            self.recLength = float(self.recLengthEdit.text())
-            self.recLengthEdit.setStyleSheet(
-                "QLineEdit { background: rgb(255, 255, 255) }"
-            )
-        except ValueError:
-            self.recLengthEdit.setStyleSheet(
-                "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
-            )
-            return False
-
-        self.num_cyc = self.recLength * self.targetFreq
-        self.numCycEdit.setText(str(self.num_cyc))
-
-        logging.debug("update recLength successfully -> {}".format(self.recLength))
-        self.restart_buff()
-
-    def update_samplingrate(self):
-        if not self.plottingtimer:
-            return
-        try:
-            self.samplerate = int(self.samplerateEdit.text())
-            self.samplerateEdit.setStyleSheet(
-                "QLineEdit { background: rgb(255, 255, 255) }"
-            )
-        except ValueError:
-            self.samplerateEdit.setStyleSheet(
-                "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
-            )
-            return False
-
-        self.smpl_per_cyc = self.samplerate / self.targetFreq
-        self.smpl_per_cycEdit.setText(str(self.smpl_per_cyc))
-
-        logging.debug("update samplerate successfully -> {}".format(self.samplerate))
-        self.restart_buff()
 
     def update_num_cyc(self):
-        if not self.plottingtimer:
-            return
         try:
             self.num_cyc = float(self.numCycEdit.text())
             self.numCycEdit.setStyleSheet(
@@ -379,16 +334,11 @@ class App(wdg.QMainWindow):
                 "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
             )
             return False
-
-        self.recLength = self.num_cyc / self.targetFreq
-        self.recLengthEdit.setText(str(round_to_sig_digets(self.recLength)))
-
+        self.param_changed()
         logging.debug("update num_cyc successfully -> {}".format(self.num_cyc))
-        self.restart_buff()
+
 
     def update_smpl_per_cyc(self):
-        if not self.plottingtimer:
-            return
         try:
             self.smpl_per_cyc = float(self.smpl_per_cycEdit.text())
             self.smpl_per_cycEdit.setStyleSheet(
@@ -399,74 +349,11 @@ class App(wdg.QMainWindow):
                 "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
             )
             return False
-
-        self.samplerate = int(self.smpl_per_cyc * self.targetFreq)
-        self.samplerateEdit.setText(str(self.samplerate))
-
+        self.param_changed()
         logging.debug(
             "update smpl_per_cyc successfully -> {}".format(self.smpl_per_cyc)
         )
-        self.restart_buff()
 
-    def update_blocksize(self):
-        if not self.plottingtimer:
-            return
-
-        try:
-            _bs = float(self.blocksizeEdit.text())
-            if _bs.is_integer():
-                self.blocksize = int(_bs)
-                self.blocksizeEdit.setStyleSheet(
-                    "QLineEdit { background: rgb(255, 255, 255) }"
-                )
-            else:
-                raise ValueError("blocksize in not an integer")
-        except ValueError:
-            self.blocksizeEdit.setStyleSheet(
-                "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
-            )
-            return False
-
-        logging.debug("update blocksize successfully -> {}".format(self.blocksize))
-        self.restart_buff()
-
-    def update_numframes(self):
-        if not self.plottingtimer:
-            return
-
-        try:
-            _nf = float(self.numframesEdit.text())
-            if _nf.is_integer():
-                self.numframes = int(_nf)
-                self.numframesEdit.setStyleSheet(
-                    "QLineEdit { background: rgb(255, 255, 255) }"
-                )
-            else:
-                raise ValueError("numframes in not an integer")
-        except ValueError:
-            self.numframesEdit.setStyleSheet(
-                "QLineEdit {{ background: {} }}".format(BG_FAIL_COLOR)
-            )
-            return False
-
-        logging.debug("update numframes successfully -> {}".format(self.blocksize))
-        self.restart_buff()
-
-    def restart_buff(self):
-        self.stop_and_clean_draw()
-        self.buf.stop_rec()
-        del self.buf
-
-        self.buf = tuner_util.RecBuff(
-            recDev=self.currentMic,
-            samplerate=self.samplerate,
-            length=self.recLength,
-            blocksize=self.blocksize,
-            numframes=self.numframes,
-        )
-        self.buf.start_rec()
-        self.init_draw()
-        self.plottingtimer.start(5)
 
     def nextTargetFreq(self):
         self.modTargetFreq(+1)
@@ -474,12 +361,38 @@ class App(wdg.QMainWindow):
     def prevTargetFreq(self):
         self.modTargetFreq(-1)
 
-    @staticmethod
-    def abs_ft(w, t, dt, signal, window):
-        ft = np.asarray(
-            [dt * np.sum(signal * np.exp(1j * t * wi) * window) for wi in w]
+    def modTargetFreq(self, step):
+        i = util.keys_piano.index(self.key) + step
+        self.level += i // 12
+        self.key = util.keys_piano[i % 12]
+
+        self.keyEdit.setText(self.key)
+        self.levelEdit.setText(str(self.level))
+
+        self.param_changed()
+        logging.debug(
+            "mod target freq (step {}): target frequency set to {:.2f} HZ".format(
+                step, self.target_freq
+            )
         )
-        return np.abs(ft)
+
+    def restart_buff(self):
+        self.stop_and_clean_draw()
+        self.buf.stop_rec()
+        del self.buf
+
+        self.buf = util.RecBuff(
+            recDev=self.currentMic,
+            samplerate=self.sample_rate,
+            length=self.rec_length,
+            blocksize=self.block_size,
+            numframes=self.num_frames,
+        )
+        self.buf.start_rec()
+        self.init_draw()
+        self.plottingtimer.start(5)
+
+
 
     def init_draw(self):
         self.plot_time_skip = max(self.buf.n // self.plot_time_n, 1)
@@ -504,21 +417,21 @@ class App(wdg.QMainWindow):
             -((self.full_time_t - self.mid_time) ** 2) / self.ft_window_gauss_width ** 2
         )
         self.ft_window = self.ft_window_gauss
-        self.w_list_base = np.linspace(0.8 * self.targetFreq, 1.2 * self.targetFreq, 25)
+        self.w_list_base = np.linspace(0.8 * self.target_freq, 1.2 * self.target_freq, 25)
 
-        self.abs_ft_base = self.abs_ft(
-            self.w_list_base,
-            self.full_time_t,
-            self.full_time_dt,
-            micSignal_full,
-            self.ft_window,
-        )
-        if self.ft_plot_data:
-            self.ft_plot_data.setData(self.w_list_base, self.abs_ft_base)
-        else:
-            self.ft_plot_data = self.plot_freq_base.plot(
-                self.w_list_base, self.abs_ft_base
-            )
+        # self.abs_ft_base = self.abs_ft(
+        #     self.w_list_base,
+        #     self.full_time_t,
+        #     self.full_time_dt,
+        #     micSignal_full,
+        #     self.ft_window,
+        # )
+        # if self.ft_plot_data:
+        #     self.ft_plot_data.setData(self.w_list_base, self.abs_ft_base)
+        # else:
+        #     self.ft_plot_data = self.plot_freq_base.plot(
+        #         self.w_list_base, self.abs_ft_base
+        #     )
 
     def stop_and_clean_draw(self):
         self.plottingtimer.stop()
