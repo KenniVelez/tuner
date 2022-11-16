@@ -68,6 +68,7 @@ class RecBuff(object):
         self.t = np.linspace(0, length, self.n)
         self.stopEvent = threading.Event()
         self.recThread = None
+        self.data_access_lock = threading.Lock()
 
         logging.debug("length       {}".format(length))
         logging.debug("samplingrate {}".format(samplerate))
@@ -83,8 +84,9 @@ class RecBuff(object):
                 if len(new_data) != self.numframes:
                     logging.debug("numframes {} but len(new_data) {}".format(self.numframes, len(new_data)))
 
-                self.data[:-self.numframes] = self.data[self.numframes:]
-                self.data[-self.numframes:] = new_data
+                with self.data_access_lock:
+                    self.data[:-self.numframes] = self.data[self.numframes:]
+                    self.data[-self.numframes:] = new_data
                 if self.stopEvent.is_set():
                     logging.debug("_rec thread notices stopEvent")
                     break
@@ -100,6 +102,12 @@ class RecBuff(object):
             self.stopEvent.set()
             self.recThread.join()
             logging.debug('_rec thread has stopped')
+
+    def copy_data(self):
+        with self.data_access_lock:
+            return self.data.copy()
+
+
 
 
 def fourier_int(signal_t, t, w):
