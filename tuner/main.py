@@ -3,8 +3,9 @@ import sys
 #import os
 #os.environ["QT_DEBUG_PLUGINS"] = "1"
 
-import PyQt5.QtWidgets as wdg
+import PyQt5.QtWidgets as QtWidgets
 from PyQt5.QtCore import QTimer
+import PyQt5.QtCore as QtCore
 import pyqtgraph as pg
 
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -33,7 +34,7 @@ def round_to_sig_digets(x, n=3):
     return x / f
 
 
-class TunerApp(wdg.QMainWindow):
+class TunerApp(QtWidgets.QMainWindow):
     def __init__(self):
 
         # default values for the fundamental parameters
@@ -54,7 +55,7 @@ class TunerApp(wdg.QMainWindow):
 
 
         # init some plot data / parameters
-        self.plot_refresh_time = config.PLOT_REFRESH_TIME
+        self.plot_refresh_time_in_ms = config.PLOT_REFRESH_TIME
 
         self.signal_plot_time_ms = None
         self.signal_plot_number_of_cycles = config.SIGNAL_PLOT_NUMBER_OF_CYCLES
@@ -68,6 +69,11 @@ class TunerApp(wdg.QMainWindow):
         self.fourier_freq_time = None
 
         self.sample_rate_fac = config.SAMPLE_RATE_FACTOR_FOR_SIGNAL_PLOT
+
+        self.main_frequency_plot_memory_length = config.MAIN_FREQUENCY_PLOT_MEMORY_LENGTH
+        self.main_frequency_plot_data_size = int(self.main_frequency_plot_memory_length / (self.plot_refresh_time_in_ms/1000))
+        self.main_frequency_plot_time = np.linspace(-self.main_frequency_plot_memory_length, 0, self.main_frequency_plot_data_size)
+        self.main_frequency_plot_levels = config.MAIN_FREQUENCY_PLOT_LEVELS
 
         if self.num_cyc <= self.signal_plot_number_of_cycles:
             raise ValueError(
@@ -109,7 +115,7 @@ class TunerApp(wdg.QMainWindow):
         self.signal_plot_timer.timeout.connect(self.update_signal_plot)
 
         # start plotting timers and show window
-        self.signal_plot_timer.start(self.plot_refresh_time)
+        self.signal_plot_timer.start(self.plot_refresh_time_in_ms)
         self.show()
 
     def calculate_parameters(self):
@@ -145,24 +151,24 @@ class TunerApp(wdg.QMainWindow):
         self.setWindowTitle(self.title)
         self.setGeometry(0, 0, 1600, 1000)
 
-        self.permanent_status_label = wdg.QLabel()
+        self.permanent_status_label = QtWidgets.QLabel()
         self.statusBar().addPermanentWidget(self.permanent_status_label)
 
         ###########################
         #   recording / sampling
         ###########################
         # settings on the right
-        self.settingsGroup = wdg.QGroupBox(title="recording / sampling")
+        self.settingsGroup = QtWidgets.QGroupBox(title="recording / sampling")
         self.settingsGroup.setMinimumWidth(300)
         self.settingsGroup.setMaximumWidth(300)
-        self.settingsLayout = wdg.QVBoxLayout()
+        self.settingsLayout = QtWidgets.QVBoxLayout()
 
         # choose mic Label
-        self.micDevLabel = wdg.QLabel("choose microphone")
+        self.micDevLabel = QtWidgets.QLabel("choose microphone")
         self.settingsLayout.addWidget(self.micDevLabel)
 
         # choose mic Combo
-        self.micDevDropDown = wdg.QComboBox()
+        self.micDevDropDown = QtWidgets.QComboBox()
         all_mics = [str(d) for d in sc.all_microphones()]
         for d in all_mics:
             self.micDevDropDown.addItem(d)
@@ -172,43 +178,43 @@ class TunerApp(wdg.QMainWindow):
         self.settingsLayout.addWidget(self.micDevDropDown)
 
         # refFreq Label
-        self.refFreqLabel = wdg.QLabel("reference freq. for 'a' (in Hz)")
+        self.refFreqLabel = QtWidgets.QLabel("reference freq. for 'a' (in Hz)")
         self.settingsLayout.addWidget(self.refFreqLabel)
 
         # refFreqLabel edit
-        self.refFreqEdit = wdg.QLineEdit(str(self.ref_freq))
+        self.refFreqEdit = QtWidgets.QLineEdit(str(self.ref_freq))
         self.settingsLayout.addWidget(self.refFreqEdit)
 
         # rec length Label
-        self.recLegthLabel = wdg.QLabel("recoding length")
+        self.recLegthLabel = QtWidgets.QLabel("recoding length")
         self.settingsLayout.addWidget(self.recLegthLabel)
 
         # rec length Value Label
-        self.recLengthValueLabel = wdg.QLabel()
+        self.recLengthValueLabel = QtWidgets.QLabel()
         self.settingsLayout.addWidget(self.recLengthValueLabel)
 
         # samplerate Label
-        self.samplerateLabel = wdg.QLabel("sampling rate")
+        self.samplerateLabel = QtWidgets.QLabel("sampling rate")
         self.settingsLayout.addWidget(self.samplerateLabel)
 
         # samplerate Value edit
-        self.samplerateValueLabel = wdg.QLabel("")
+        self.samplerateValueLabel = QtWidgets.QLabel("")
         self.settingsLayout.addWidget(self.samplerateValueLabel)
 
         # num_cyc Label
-        self.numCycLabel = wdg.QLabel("number of cycles (wrt to target freq.)")
+        self.numCycLabel = QtWidgets.QLabel("number of cycles (wrt to target freq.)")
         self.settingsLayout.addWidget(self.numCycLabel)
 
         # num_cyc edit
-        self.numCycEdit = wdg.QLineEdit(str(self.num_cyc))
+        self.numCycEdit = QtWidgets.QLineEdit(str(self.num_cyc))
         self.settingsLayout.addWidget(self.numCycEdit)
 
         # smpl_per_cyc Label
-        self.smpl_per_cycLabel = wdg.QLabel("samples per cycles")
+        self.smpl_per_cycLabel = QtWidgets.QLabel("samples per cycles")
         self.settingsLayout.addWidget(self.smpl_per_cycLabel)
 
         # smpl_per_cyc edit
-        self.smpl_per_cycEdit = wdg.QLineEdit(str(self.smpl_per_cyc))
+        self.smpl_per_cycEdit = QtWidgets.QLineEdit(str(self.smpl_per_cyc))
         self.settingsLayout.addWidget(self.smpl_per_cycEdit)
 
         # put everything together
@@ -220,46 +226,46 @@ class TunerApp(wdg.QMainWindow):
         ###########################
 
         # key selection
-        self.keySelGroup = wdg.QGroupBox(title="select key")
+        self.keySelGroup = QtWidgets.QGroupBox(title="select key")
         self.keySelGroup.setMinimumWidth(300)
         self.keySelGroup.setMaximumWidth(300)
-        self.keySelLayout = wdg.QVBoxLayout()
+        self.keySelLayout = QtWidgets.QVBoxLayout()
 
         # key Label
-        self.keyLabel = wdg.QLabel("key")
+        self.keyLabel = QtWidgets.QLabel("key")
         self.keySelLayout.addWidget(self.keyLabel)
 
         # key edit
-        self.keyEdit = wdg.QLineEdit(self.key)
+        self.keyEdit = QtWidgets.QLineEdit(self.key)
         self.keySelLayout.addWidget(self.keyEdit)
 
         # level Label
-        self.levelLabel = wdg.QLabel("level")
+        self.levelLabel = QtWidgets.QLabel("level")
         self.keySelLayout.addWidget(self.levelLabel)
 
         # level edit
-        self.levelEdit = wdg.QLineEdit(str(self.level))
+        self.levelEdit = QtWidgets.QLineEdit(str(self.level))
         self.keySelLayout.addWidget(self.levelEdit)
 
         # target freq Label
-        self.targetFreqLabel = wdg.QLabel("target frequency")
+        self.targetFreqLabel = QtWidgets.QLabel("target frequency")
         self.keySelLayout.addWidget(self.targetFreqLabel)
 
         # target freq Label
-        self.targetFreqShow = wdg.QLabel()
+        self.targetFreqShow = QtWidgets.QLabel()
         self.keySelLayout.addWidget(self.targetFreqShow)
 
-        self.prevNoteBtn = wdg.QPushButton("prev")
+        self.prevNoteBtn = QtWidgets.QPushButton("prev")
         self.prevNoteBtn.setMaximumWidth(50)
-        self.nextNoteBtn = wdg.QPushButton("next")
+        self.nextNoteBtn = QtWidgets.QPushButton("next")
         self.nextNoteBtn.setMaximumWidth(50)
 
-        hl = wdg.QHBoxLayout()
+        hl = QtWidgets.QHBoxLayout()
         hl.addStretch(1)
         hl.addWidget(self.prevNoteBtn)
         hl.addWidget(self.nextNoteBtn)
         hl.addStretch(1)
-        whl = wdg.QWidget()
+        whl = QtWidgets.QWidget()
         whl.setLayout(hl)
 
         self.keySelLayout.addWidget(whl)
@@ -278,6 +284,23 @@ class TunerApp(wdg.QMainWindow):
         # self.plot_fourier.setYRange(0, 1, padding=0.01)
         # the plot of the fitted base frequency over time
         self.plot_freq = self.grWidget.addPlot(row=0, col=1)
+        self.plot_freq.plot(
+            x=[-self.main_frequency_plot_memory_length, 0],
+            y=[0, 0],
+            pen={'style': QtCore.Qt.DotLine}
+        )
+        for l in self.main_frequency_plot_levels:
+            self.plot_freq.plot(
+                x=[-self.main_frequency_plot_memory_length, 0],
+                y=[l, l],
+                pen={'style': QtCore.Qt.DotLine}
+            )
+            self.plot_freq.plot(
+                x=[-self.main_frequency_plot_memory_length, 0],
+                y=[-l, -l],
+                pen = {'style': QtCore.Qt.DotLine}
+            )
+        self.plot_freq.setYRange(-2*l, 2*l)
         # the plot of the microphone signal
         self.plot_signal = self.grWidget.addPlot(row=1, col=0, colspan=2)
         # self.plot_signal.setYRange(-1, 1, padding=0.01)
@@ -285,12 +308,12 @@ class TunerApp(wdg.QMainWindow):
         ###########################
         #   put everything to the main window
         ###########################
-        self.mainLayout = wdg.QGridLayout()
+        self.mainLayout = QtWidgets.QGridLayout()
         self.mainLayout.addWidget(self.grWidget, 0, 0, 2, 1)
         self.mainLayout.addWidget(self.settingsGroup, 0, 1, 1, 1)
         self.mainLayout.addWidget(self.keySelGroup, 1, 1, 1, 1)
 
-        self.mainWidget = wdg.QWidget()
+        self.mainWidget = QtWidgets.QWidget()
         self.mainWidget.setLayout(self.mainLayout)
         self.setCentralWidget(self.mainWidget)
 
@@ -311,7 +334,7 @@ class TunerApp(wdg.QMainWindow):
         self.restart_buff()
 
         self.init_plot_data_items()
-        self.signal_plot_timer.start(self.plot_refresh_time)
+        self.signal_plot_timer.start(self.plot_refresh_time_in_ms)
 
     def update_targetFreq(self):
         s = self.keyEdit.text()
@@ -428,6 +451,11 @@ class TunerApp(wdg.QMainWindow):
         del self.plot_signal_plot_data_item
         self.plot_signal_plot_data_item = None
 
+        if self.plot_signal_fit_plot_data_item:
+            self.plot_signal.removeItem(self.plot_signal_fit_plot_data_item)
+            del self.plot_signal_fit_plot_data_item
+            self.plot_signal_fit_plot_data_item = None
+
         # clean up the Fourier plot data item
         self.plot_fourier.removeItem(self.plot_fourier_w1_data_item)
         del self.plot_fourier_w1_data_item
@@ -455,6 +483,10 @@ class TunerApp(wdg.QMainWindow):
         del self.plot_fourier_v3_data_item
         self.plot_fourier_v3_data_item = None
 
+        self.plot_freq.removeItem(self.plot_main_frequency_data_item)
+        del self.plot_main_frequency_data_item
+        self.plot_main_frequency_data_item = None
+
     def init_plot_data_items(self):
         """
         Create the plot items so that they can be modified by the update routine triggered by the timer.
@@ -470,12 +502,17 @@ class TunerApp(wdg.QMainWindow):
             1/(self.sample_rate_fac * self.sample_rate)             # delta T
         ) * 1000
         # set the x range
-        self.plot_signal.setXRange(0, self.signal_plot_time_ms[-1], padding=0.005 * self.signal_plot_time_ms[-1])
+        self.plot_signal.setXRange(0, self.signal_plot_time_ms[-1], padding=0.05)
         # init plot item with zeros as y-data
         self.plot_signal_plot_data_item = self.plot_signal.plot(
             x=self.signal_plot_time_ms,
             y=[0]*len(self.signal_plot_time_ms)
         )
+
+        # init this plot data with None
+        # because we will only draw the fit, if the least square fitting works
+        # thus, the plot will be created / deleted dynamically
+        self.plot_signal_fit_plot_data_item = None
 
         #######################
         #   the Fourier plot
@@ -536,37 +573,34 @@ class TunerApp(wdg.QMainWindow):
             pen={'width': 1}
         )
 
+        #######################
+        #   the main frequency plot
+        #######################
+        self.main_frequency_plot_data = np.empty(
+            shape=self.main_frequency_plot_data_size
+        )
+        self.main_frequency_plot_data[:] = 0
+        self.plot_main_frequency_data_item = self.plot_freq.plot(
+            x=self.main_frequency_plot_time,
+            y=self.main_frequency_plot_data,
+            pen={'color': '#F00', 'width': 3}
+        )
 
     def update_signal_plot(self):
         t0 = time.perf_counter_ns()
-        #######################
-        #   the signal plot
-        #######################
-        # this is the raw data
-        raw_data = self.buf.copy_data()
-        data = raw_data[0:len(self.signal_plot_time_ms)]
 
-        # we want to trigger on raising amplitude through zero
-        data_sign = np.sign(data)
-        data_sign_change = np.roll(data_sign, 1) - data_sign
-        data_sign_change[0] = 0
-        try:
-            idx = np.where(data_sign_change == -2)[0][0]
-            data = raw_data[idx:len(self.signal_plot_time_ms) + idx]
-            self.plot_signal_plot_data_item.setData(
-                x=self.signal_plot_time_ms,
-                y=data
-            )
-        except IndexError:
-            pass
+        raw_data = self.buf.copy_data()
 
         #######################
         #   the Fourier plot
         #######################
         data_for_FT = raw_data[::self.sample_rate_fac]
-        ft_w1 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t, 2 * np.pi * self.fourier_plot_w1)
-        ft_w2 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t, 2 * np.pi * self.fourier_plot_w2)
-        ft_w3 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t, 2 * np.pi * self.fourier_plot_w3)
+        ft_w1 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t,
+                                                                    2 * np.pi * self.fourier_plot_w1)
+        ft_w2 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t,
+                                                                    2 * np.pi * self.fourier_plot_w2)
+        ft_w3 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t,
+                                                                    2 * np.pi * self.fourier_plot_w3)
 
         ft_w1_abs = np.abs(ft_w1)
         ft_w2_abs = np.abs(ft_w2)
@@ -574,25 +608,25 @@ class TunerApp(wdg.QMainWindow):
         sig_max = np.max(np.abs(data_for_FT))
 
         self.plot_fourier_w1_data_item.setData(
-            x=self.fourier_plot_w1-self.target_freq,
-            y=ft_w1_abs/sig_max
+            x=self.fourier_plot_w1 - self.target_freq,
+            y=ft_w1_abs / sig_max
         )
         self.plot_fourier_w2_data_item.setData(
-            x=self.fourier_plot_w2 - 2*self.target_freq,
-            y=ft_w2_abs/sig_max
+            x=self.fourier_plot_w2 - 2 * self.target_freq,
+            y=ft_w2_abs / sig_max
         )
         self.plot_fourier_w3_data_item.setData(
-            x=self.fourier_plot_w3 - 3*self.target_freq,
-            y=ft_w3_abs/sig_max
+            x=self.fourier_plot_w3 - 3 * self.target_freq,
+            y=ft_w3_abs / sig_max
         )
 
         idx1 = np.argmax(ft_w1_abs)
         idx2 = np.argmax(ft_w2_abs)
         idx3 = np.argmax(ft_w3_abs)
-        scale = ft_w1_abs[idx1]*1.1/sig_max
+        scale = ft_w1_abs[idx1] * 1.1 / sig_max
         w1_max = self.fourier_plot_w1[idx1] - self.target_freq
-        w2_max = self.fourier_plot_w2[idx2] - 2*self.target_freq
-        w3_max = self.fourier_plot_w3[idx3] - 3*self.target_freq
+        w2_max = self.fourier_plot_w2[idx2] - 2 * self.target_freq
+        w3_max = self.fourier_plot_w3[idx3] - 3 * self.target_freq
         self.plot_fourier_v1_data_item.setData(
             x=[w1_max, w1_max],
             y=[0, scale]
@@ -606,18 +640,81 @@ class TunerApp(wdg.QMainWindow):
             y=[0, scale]
         )
 
-        if ft_w1_abs[idx1]/sig_max > 0.1:
-            omg_fit, amp, phi, optimality = util.fit_harmonic_function(
-               signal_t=raw_data,
-               t=self.buf.t,
-               omg_guess=2*np.pi*self.fourier_plot_w1[idx1],
-               N=3,
+
+        try:
+            omg_fit, amp, phi, r = util.fit_harmonic_function(
+                signal_t=raw_data,
+                t=self.buf.t,
+                omg_guess=2*np.pi*self.fourier_plot_w1[idx1],
+                N=3,
+                kwargs_least_squares={'max_nfev': 15}
             )
+            print(r.optimality, r.nfev)
+            phi0 = phi[0] % (2*np.pi)
+            T = 2*np.pi / omg_fit
+            t_sh = 3*T/4 - phi0 / omg_fit
+            if t_sh < 0:
+                t_sh += T
+
+            idx = int(t_sh // self.buf.dt)
+            t_sh_fine = t_sh - self.buf.t[idx]
+        except RuntimeError:
+            omg_fit = None
+            idx = 0
+            t_sh_fine = 0
+
+        #######################
+        #   the signal plot
+        #######################
+
+        data = raw_data[idx:len(self.signal_plot_time_ms)+idx]
+        self.plot_signal_plot_data_item.setData(
+            x=self.signal_plot_time_ms - t_sh_fine*1000,
+            #x=self.signal_plot_time_ms,
+            y=data
+        )
+        if omg_fit:
+            self.main_frequency_plot_data[0:-1] = self.main_frequency_plot_data[1:]
+            #self.main_frequency_plot_data[-1] = (omg_fit - self.target_freq) / self.target_freq
+            self.main_frequency_plot_data[-1] = omg_fit
+            sig_fit_t = util.n_harmonic_function(
+                t=self.signal_plot_time_ms/1000,
+                omg_base=omg_fit,
+                amp=amp,
+                phi=phi-phi0 - np.pi/2
+            )
+            if self.plot_signal_fit_plot_data_item is None:
+                self.plot_signal_fit_plot_data_item = self.plot_signal.plot(
+                    x=self.signal_plot_time_ms,
+                    y=sig_fit_t,
+                    pen={'color': '#F00', 'width': 3}
+                )
+            else:
+                self.plot_signal_fit_plot_data_item.setData(
+                    x=self.signal_plot_time_ms,
+                    y=sig_fit_t
+                )
+        else:
+            self.main_frequency_plot_data[0:-1] = self.main_frequency_plot_data[1:]
+            self.main_frequency_plot_data[-1] = 0
+            if self.plot_signal_fit_plot_data_item is not None:
+                self.plot_signal.removeItem(self.plot_signal_fit_plot_data_item)
+                del self.plot_signal_fit_plot_data_item
+                self.plot_signal_fit_plot_data_item = None
+
+        connect = self.main_frequency_plot_data != 0
+        connect = np.asarray(np.logical_and(connect, np.roll(connect, -1)), dtype=np.int)
+        self.plot_main_frequency_data_item.setData(
+            x=self.main_frequency_plot_time,
+            y=(self.main_frequency_plot_data/(2*np.pi)-self.target_freq) / self.target_freq,
+            connect=connect
+        )
+
 
         t1 = time.perf_counter_ns()
         dt = (t1 - t0) / 10**6
         self.permanent_status_label.setText("plotting takes {:.2f}ms".format(dt))
-        if dt > self.plot_refresh_time:
+        if dt > self.plot_refresh_time_in_ms:
             warnings.warn("plotting takes longer that refresh time, timer too fast")
 
 
@@ -627,3 +724,9 @@ class TunerApp(wdg.QMainWindow):
         self.buf.stop_rec()
         self.stop_and_clean_draw()
 
+    def keyPressEvent(self, event):
+        if event.key() == 83:
+            fname = "{}_tuner_dump".format(time.strftime('%Y_%m_%d__%H_%M_%S', time.localtime()))
+            print("dump current buffer to {}.npy".format(fname))
+            data = np.vstack((self.buf.t, self.buf.copy_data()))
+            np.save(fname, data)

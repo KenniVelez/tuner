@@ -65,7 +65,9 @@ class RecBuff(object):
         self.numframes = numframes
         self.n = max(int(samplerate*length)+1, numframes)
         self.data = np.zeros(shape=self.n, dtype=np.float64)
-        self.t = np.linspace(0, length, self.n)
+        self.dt = 1/samplerate
+        self.tmax = (self.n-1) * self.dt
+        self.t = np.linspace(0, self.tmax, self.n)
         self.stopEvent = threading.Event()
         self.recThread = None
         self.data_access_lock = threading.Lock()
@@ -146,13 +148,13 @@ def n_harmonic_residual(x, t, signal_t, N):
     return n_harmonic_function(t, omg_base, amp, phi) - signal_t
 
 
-def fit_harmonic_function(signal_t, t, omg_guess, N):
+def fit_harmonic_function(signal_t, t, omg_guess, N, kwargs_least_squares={}):
     """
     Fit the N-harmonic function to the signal data.
 
     :param signal_t: the signal data
     :param t: the time axes of the signal data
-    :param omg_guess: an iniital guess of the base frequency (in radians per sec)
+    :param omg_guess: an initial guess of the base frequency (in radians per sec)
     :param: the number of (higher) harmonics, N=2 means base frequency and the first higher harmonic.
     """
 
@@ -165,7 +167,8 @@ def fit_harmonic_function(signal_t, t, omg_guess, N):
     r = least_squares(
         fun=n_harmonic_residual,
         x0=np.concatenate(([omg_guess], amp, phi)),
-        args=(t, signal_t, N)
+        args=(t, signal_t, N),
+        **kwargs_least_squares
     )
 
     if not r.success:
@@ -173,9 +176,9 @@ def fit_harmonic_function(signal_t, t, omg_guess, N):
 
     omg_base = r.x[0]
     amp = r.x[1:N+1]
-    phi = r.x[N+2:2*N+1]
+    phi = r.x[N+1:2*N+1]
 
-    return omg_base, amp, phi, r.optimality
+    return omg_base, amp, phi, r
 
 
 
