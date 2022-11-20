@@ -101,13 +101,21 @@ class TunerApp(QtWidgets.QMainWindow):
         self.numCycEdit.editingFinished.connect(self.update_num_cyc)
         self.smpl_per_cycEdit.editingFinished.connect(self.update_smpl_per_cyc)
 
+        try:
+            self.DEBUG_buffer_from_file = config.DEBUG_BUFFER_FROM_FILE
+        except AttributeError:
+            self.DEBUG_buffer_from_file = None
+
         # setup and start the buffer which holds the microphone signal
-        self.buf = util.RecBuff(
-            recDev=self.currentMic,
-            samplerate=self.sample_rate_fac * self.sample_rate,
-            length=self.rec_length
-        )
-        self.buf.start_rec()
+        if self.DEBUG_buffer_from_file:
+            self.buf = util.RecBuff_debug_from_file(self.DEBUG_buffer_from_file)
+        else:
+            self.buf = util.RecBuff(
+                recDev=self.currentMic,
+                samplerate=self.sample_rate_fac * self.sample_rate,
+                length=self.rec_length
+            )
+            self.buf.start_rec()
 
         self.signal_plot_timer = QTimer()
 
@@ -431,17 +439,18 @@ class TunerApp(QtWidgets.QMainWindow):
         )
 
     def restart_buff(self):
-        self.buf.stop_rec()
-        del self.buf
+        if self.DEBUG_buffer_from_file is None:
+            self.buf.stop_rec()
+            del self.buf
 
-        self.buf = util.RecBuff(
-            recDev=self.currentMic,
-            samplerate=self.sample_rate_fac * self.sample_rate,
-            length=self.rec_length,
-            blocksize=self.block_size,
-            numframes=self.num_frames,
-        )
-        self.buf.start_rec()
+            self.buf = util.RecBuff(
+                recDev=self.currentMic,
+                samplerate=self.sample_rate_fac * self.sample_rate,
+                length=self.rec_length,
+                blocksize=self.block_size,
+                numframes=self.num_frames,
+            )
+            self.buf.start_rec()
 
     def stop_and_clean_draw(self):
         self.signal_plot_timer.stop()
@@ -649,7 +658,7 @@ class TunerApp(QtWidgets.QMainWindow):
                 N=3,
                 kwargs_least_squares={'max_nfev': 15}
             )
-            print(r.optimality, r.nfev)
+            #print(r.optimality, r.nfev)
             phi0 = phi[0] % (2*np.pi)
             T = 2*np.pi / omg_fit
             t_sh = 3*T/4 - phi0 / omg_fit

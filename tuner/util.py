@@ -110,6 +110,36 @@ class RecBuff(object):
             return self.data.copy()
 
 
+class RecBuff_debug_from_file(object):
+    def __init__(self, fname):
+        """
+        read constant buffer from file, DEBUG
+        """
+        data = np.load(fname)
+        t = data[0, :]
+        s = data[1, :]
+        self.recDev = None
+        self.samplerate = None
+        self.length = t[-1]
+        self.blocksize = None
+        self.numframes = None
+        self.n = len(t)
+        self.data = s
+        self.dt = t[1] - t[0]
+        self.tmax = t[-1]
+        self.t = t
+        self.stopEvent = None
+        self.recThread = None
+        self.data_access_lock = None
+
+    def start_rec(self):
+        pass
+
+    def stop_rec(self):
+        pass
+
+    def copy_data(self):
+        return self.data.copy()
 
 
 def fourier_int(signal_t, t, w):
