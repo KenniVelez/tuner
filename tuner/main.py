@@ -256,7 +256,7 @@ class TunerApp(QtWidgets.QMainWindow):
         self.keySelLayout.addWidget(self.levelEdit)
 
         # target freq Label
-        self.targetFreqLabel = QtWidgets.QLabel("target frequency")
+        self.targetFreqLabel = QtWidgets.QLabel("target frequency &omega;<sub>0</sub> (period)")
         self.keySelLayout.addWidget(self.targetFreqLabel)
 
         # target freq Label
@@ -307,9 +307,25 @@ class TunerApp(QtWidgets.QMainWindow):
 
         # the plot of the Fourier transform data
         self.plot_fourier = self.grWidget.addPlot(row=0, col=0)
+        self.plot_fourier.setLabel(
+            'left',
+            'shifted finite Fourier integral f(&omega; - n&omega;<sub>0</sub>)',
+        )
+        self.plot_fourier.setLabel(
+            'bottom',
+            'shifted frequency &omega; - n&omega;<sub>0</sub>',
+        )
         # self.plot_fourier.setYRange(0, 1, padding=0.01)
         # the plot of the fitted base frequency over time
         self.plot_freq = self.grWidget.addPlot(row=0, col=1)
+        self.plot_freq.setLabel(
+            'left',
+            'relative diff. of fitted frequency &omega;, i.e., (&omega; - &omega;<sub>0</sub>)  / &omega;<sub>0</sub>'
+        )
+        self.plot_freq.setLabel(
+            'bottom',
+            'elapsed recording time in sec.'
+        )
         self.plot_freq.plot(
             x=[-self.main_frequency_plot_memory_length, 0],
             y=[0, 0],
@@ -329,6 +345,14 @@ class TunerApp(QtWidgets.QMainWindow):
         self.plot_freq.setYRange(-2*l, 2*l)
         # the plot of the microphone signal
         self.plot_signal = self.grWidget.addPlot(row=1, col=0, colspan=2)
+        self.plot_signal.setLabel(
+            'left',
+            'the mic. signal (arbtr. units)'
+        )
+        self.plot_signal.setLabel(
+            'bottom',
+            'time in ms'
+        )
         # self.plot_signal.setYRange(-1, 1, padding=0.01)
 
         ###########################
