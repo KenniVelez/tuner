@@ -282,6 +282,24 @@ class TunerApp(QtWidgets.QMainWindow):
         self.keySelLayout.addStretch(1)
         self.keySelGroup.setLayout(self.keySelLayout)
 
+        # show measured frequency
+        self.measuredFreqGroup = QtWidgets.QGroupBox(title="measured frequency")
+        self.measuredFreqGroup.setMinimumWidth(300)
+        self.measuredFreqGroup.setMaximumWidth(300)
+        self.measuredFreqLayout = QtWidgets.QVBoxLayout()
+
+        # measured frequency label
+        self.measuredFreqLabel = QtWidgets.QLabel("0.0 Hz")
+        self.measuredFreqLabel.setAlignment(QtCore.Qt.AlignCenter)
+        self.measuredFreqLabel.setStyleSheet(
+            "color: red; font: bold 24px;"
+        )
+
+        self.measuredFreqLayout.addStretch(1)
+        self.measuredFreqLayout.addWidget(self.measuredFreqLabel)
+        self.measuredFreqLayout.addStretch(1)
+        self.measuredFreqGroup.setLayout(self.measuredFreqLayout)
+
         ###########################
         #   Graphs
         ###########################
@@ -317,9 +335,10 @@ class TunerApp(QtWidgets.QMainWindow):
         #   put everything to the main window
         ###########################
         self.mainLayout = QtWidgets.QGridLayout()
-        self.mainLayout.addWidget(self.grWidget, 0, 0, 2, 1)
+        self.mainLayout.addWidget(self.grWidget, 0, 0, 3, 1)
         self.mainLayout.addWidget(self.settingsGroup, 0, 1, 1, 1)
         self.mainLayout.addWidget(self.keySelGroup, 1, 1, 1, 1)
+        self.mainLayout.addWidget(self.measuredFreqGroup, 2, 1, 1, 1)
 
         self.mainWidget = QtWidgets.QWidget()
         self.mainWidget.setLayout(self.mainLayout)
@@ -655,8 +674,8 @@ class TunerApp(QtWidgets.QMainWindow):
                 signal_t=raw_data,
                 t=self.buf.t,
                 omg_guess=2*np.pi*self.fourier_plot_w1[idx1],
-                N=3,
-                kwargs_least_squares={'max_nfev': 15}
+                N=config.NUMBER_OF_HIGHER_HARMONICS,
+                kwargs_least_squares={'max_nfev': config.LEAST_SQUARES_MAX_NFEV}
             )
             #print(r.optimality, r.nfev)
             phi0 = phi[0] % (2*np.pi)
@@ -687,10 +706,10 @@ class TunerApp(QtWidgets.QMainWindow):
             #self.main_frequency_plot_data[-1] = (omg_fit - self.target_freq) / self.target_freq
             self.main_frequency_plot_data[-1] = omg_fit
             sig_fit_t = util.n_harmonic_function(
-                t=self.signal_plot_time_ms/1000,
+                t=self.signal_plot_time_ms/1000 + (t_sh + t_sh_fine),
                 omg_base=omg_fit,
                 amp=amp,
-                phi=phi-phi0 - np.pi/2
+                phi=phi
             )
             if self.plot_signal_fit_plot_data_item is None:
                 self.plot_signal_fit_plot_data_item = self.plot_signal.plot(
@@ -703,6 +722,7 @@ class TunerApp(QtWidgets.QMainWindow):
                     x=self.signal_plot_time_ms,
                     y=sig_fit_t
                 )
+            self.measuredFreqLabel.setText("{:.2f} Hz".format(omg_fit/2/np.pi))
         else:
             self.main_frequency_plot_data[0:-1] = self.main_frequency_plot_data[1:]
             self.main_frequency_plot_data[-1] = 0
@@ -719,14 +739,11 @@ class TunerApp(QtWidgets.QMainWindow):
             connect=connect
         )
 
-
         t1 = time.perf_counter_ns()
         dt = (t1 - t0) / 10**6
         self.permanent_status_label.setText("plotting takes {:.2f}ms".format(dt))
         if dt > self.plot_refresh_time_in_ms:
             warnings.warn("plotting takes longer that refresh time, timer too fast")
-
-
 
     def closeEvent(self, event):
         logging.debug("QApp gets closeEvent")
