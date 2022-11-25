@@ -3,6 +3,8 @@ by Richard Hartmann
 
 Tuner - frequency analysis of the microphone input suitable to tune instruments.
 
+![image gui](doc/gui.png "tuner-App")
+
 ## Install and Run
 
 if you have not, install `poetry`, dependency management and packaging in Python.  
@@ -20,6 +22,10 @@ Run the app by `poetry run python start_tuner.py`
 2) Play a tone and tune such that the relative difference (upper right panel) 
    is well below 1% (0.01) for some time. 
    You can use the mouse (drag and scroll) to adjust the axes.
+
+## License
+
+GNU General Public License v3.0
 
 ## Donation
 
@@ -52,4 +58,10 @@ If you don't like PayPal, contact me at richard_hartmann(at)gmx.&#8574;&#8519;.
    Record no value if the least square fitting does not converge sufficiently fast.
    (upper right plot)
 
+## Acknowledgements
 
+As of the great collection of numeric routines provided by 
+[numpy](https://numpy.org/) putting the algorithm in place was straight forward.
+The plotting was made possible using [Qt](https://www.qt.io/) wrapped to 
+[Python](https://www.python.org/) via [pyqtgraph](https://www.pyqtgraph.org/).
+Thanks!
