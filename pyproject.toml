@@ -2,9 +2,8 @@
 name = "tuner"
 version = "0.1.0"
 description = "analyse mic input (frequency analysis) to be used to tune instruments"
-authors = [
-    { name="Richard Hartmann", email="richard_hartmann@gmx.de" },
-]
+authors = ["Richard Hartmann <richard_hartmann@gmx.de>"]
+license = "GPL-3.0-or-later"
 readme = "README.md"
 classifiers = [
     "Programming Language :: Python :: 3",
@@ -17,7 +16,6 @@ classifiers = [
 python = "~3.9"
 PyQt5 = "5.15.3"
 pyqtgraph = "0.11"   # newer version requires newer Qt5 libs
-matplotlib = "^3.5.2"
 numpy = "^1.23"
 scipy = "^1.9.3"
 SoundCard = "^0.4.2"
