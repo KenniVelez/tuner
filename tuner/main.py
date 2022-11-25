@@ -8,9 +8,6 @@ from PyQt5.QtCore import QTimer
 import PyQt5.QtCore as QtCore
 import pyqtgraph as pg
 
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.figure import Figure
-import matplotlib.pyplot as plt
 import numpy as np
 import time
 
@@ -60,13 +57,8 @@ class TunerApp(QtWidgets.QMainWindow):
         self.signal_plot_time_ms = None
         self.signal_plot_number_of_cycles = config.SIGNAL_PLOT_NUMBER_OF_CYCLES
 
-        self.fourier_plot_w1 = None
-        self.fourier_plot_w2 = None
-        self.fourier_plot_w3 = None
         self.fourier_plot_dw = config.FOURIER_PLOT_DELTA_W_IN_PERCENT
         self.fourier_plot_n = config.FOURIER_PLOT_NUMBER_OF_DATA_POINTS
-        self.fourier_freq_data = None
-        self.fourier_freq_time = None
 
         self.sample_rate_fac = config.SAMPLE_RATE_FACTOR_FOR_SIGNAL_PLOT
 
@@ -74,6 +66,11 @@ class TunerApp(QtWidgets.QMainWindow):
         self.main_frequency_plot_data_size = int(self.main_frequency_plot_memory_length / (self.plot_refresh_time_in_ms/1000))
         self.main_frequency_plot_time = np.linspace(-self.main_frequency_plot_memory_length, 0, self.main_frequency_plot_data_size)
         self.main_frequency_plot_levels = config.MAIN_FREQUENCY_PLOT_LEVELS
+
+        self.plotting_time_max = 0
+        self.plotting_time_accum = 0
+        self.plotting_time_cnt = 0
+
 
         if self.num_cyc <= self.signal_plot_number_of_cycles:
             raise ValueError(
@@ -292,7 +289,7 @@ class TunerApp(QtWidgets.QMainWindow):
         self.measuredFreqLabel = QtWidgets.QLabel("0.0 Hz")
         self.measuredFreqLabel.setAlignment(QtCore.Qt.AlignCenter)
         self.measuredFreqLabel.setStyleSheet(
-            "color: red; font: bold 24px;"
+            "color: {}; font: bold 24px;".format(config.MAIN_FREQUENCY_PLOT_STYLE['color'])
         )
 
         self.measuredFreqLayout.addStretch(1)
@@ -315,6 +312,7 @@ class TunerApp(QtWidgets.QMainWindow):
             'bottom',
             'shifted frequency &omega; - n&Omega;',
         )
+        self.plot_fourier.addLegend()
         # self.plot_fourier.setYRange(0, 1, padding=0.01)
         # the plot of the fitted base frequency over time
         self.plot_freq = self.grWidget.addPlot(row=0, col=1)
@@ -509,31 +507,15 @@ class TunerApp(QtWidgets.QMainWindow):
             self.plot_signal_fit_plot_data_item = None
 
         # clean up the Fourier plot data item
-        self.plot_fourier.removeItem(self.plot_fourier_w1_data_item)
-        del self.plot_fourier_w1_data_item
-        self.plot_fourier_w1_data_item = None
+        for data_item in self.fourier_plots_data_items_FT:
+            self.plot_fourier.removeItem(data_item)
+            del data_item
+        self.fourier_plots_data_items_FT = []
 
-        self.plot_fourier.removeItem(self.plot_fourier_v1_data_item)
-        del self.plot_fourier_v1_data_item
-        self.plot_fourier_v1_data_item = None
-
-        # clean up the Fourier plot data item
-        self.plot_fourier.removeItem(self.plot_fourier_w2_data_item)
-        del self.plot_fourier_w2_data_item
-        self.plot_fourier_w2_data_item = None
-
-        self.plot_fourier.removeItem(self.plot_fourier_v2_data_item)
-        del self.plot_fourier_v2_data_item
-        self.plot_fourier_v2_data_item = None
-
-        # clean up the Fourier plot data item
-        self.plot_fourier.removeItem(self.plot_fourier_w3_data_item)
-        del self.plot_fourier_w3_data_item
-        self.plot_fourier_w3_data_item = None
-
-        self.plot_fourier.removeItem(self.plot_fourier_v3_data_item)
-        del self.plot_fourier_v3_data_item
-        self.plot_fourier_v3_data_item = None
+        for data_item in self.fourier_plots_data_items_vert:
+            self.plot_fourier.removeItem(data_item)
+            del data_item
+        self.fourier_plots_data_items_vert = []
 
         self.plot_freq.removeItem(self.plot_main_frequency_data_item)
         del self.plot_main_frequency_data_item
@@ -558,7 +540,8 @@ class TunerApp(QtWidgets.QMainWindow):
         # init plot item with zeros as y-data
         self.plot_signal_plot_data_item = self.plot_signal.plot(
             x=self.signal_plot_time_ms,
-            y=[0]*len(self.signal_plot_time_ms)
+            y=[0]*len(self.signal_plot_time_ms),
+            pen=config.SIGNAL_PLOT_STYLE_SIGNAL
         )
 
         # init this plot data with None
@@ -571,59 +554,34 @@ class TunerApp(QtWidgets.QMainWindow):
         #######################
         # create x-data
         dw = self.fourier_plot_dw / 100 * self.target_freq
-        self.fourier_plot_w1 = np.linspace(
-            self.target_freq - dw,
-            self.target_freq + dw,
-            self.fourier_plot_n
-        )
-
-        self.fourier_plot_w2 = np.linspace(
-            2*self.target_freq - dw,
-            2*self.target_freq + dw,
-            self.fourier_plot_n
-        )
-
-        self.fourier_plot_w3 = np.linspace(
-            3*self.target_freq - dw,
-            3*self.target_freq + dw,
-            self.fourier_plot_n
-        )
-
+        self.fourier_plots_w_axes = []
+        self.fourier_plots_data_items_FT = []
+        self.fourier_plots_data_items_vert = []
         self.fourier_plot_t = self.buf.t[::self.sample_rate_fac]
         self.fourier_plot_tmax = self.fourier_plot_t[-1]
-
-        # init plot item with zeros as y-data
-        self.plot_fourier_w1_data_item = self.plot_fourier.plot(
-            x=self.fourier_plot_w1-self.target_freq,
-            y=[0] * self.fourier_plot_n,
-            pen={'color': '#F00', 'width': 3}
-        )
-        self.plot_fourier_v1_data_item = self.plot_fourier.plot(
-            x=[0, 0],
-            y=[0, 0],
-            pen={'color': '#F00', 'width': 3}
-        )
-
-        self.plot_fourier_w2_data_item = self.plot_fourier.plot(
-            x=self.fourier_plot_w2-2*self.target_freq,
-            y=[0] * self.fourier_plot_n,
-            pen={'color': '#0F0', 'width': 2}
-        )
-        self.plot_fourier_v2_data_item = self.plot_fourier.plot(
-            x=[0, 0],
-            y=[0, 0],
-            pen={'color': '#0F0', 'width': 2}
-        )
-        self.plot_fourier_w3_data_item = self.plot_fourier.plot(
-            x=self.fourier_plot_w3-3*self.target_freq,
-            y=[0] * self.fourier_plot_n,
-            pen={'width': 1}
-        )
-        self.plot_fourier_v3_data_item = self.plot_fourier.plot(
-            x=[0, 0],
-            y=[0, 0],
-            pen={'width': 1}
-        )
+        for n in range(1, config.FOURIER_PLOT_NUMBER_OF_HIGHER_HARMONICS+1):
+            self.fourier_plots_w_axes.append(
+                np.linspace(
+                    n*self.target_freq - dw,
+                    n*self.target_freq + dw,
+                    self.fourier_plot_n
+                )
+            )
+            self.fourier_plots_data_items_FT.append(
+                self.plot_fourier.plot(
+                    x=self.fourier_plots_w_axes[-1] - self.target_freq,
+                    y=[0] * self.fourier_plot_n,
+                    pen=config.FOURIER_PLOT_HIGHER_HARMONICS_STYLES[n-1],
+                    name="n={}".format(n)
+                )
+            )
+            self.fourier_plots_data_items_vert.append(
+                self.plot_fourier.plot(
+                    x=[0, 0],
+                    y=[0, 0],
+                    pen=config.FOURIER_PLOT_HIGHER_HARMONICS_STYLES[n-1]
+                )
+            )
 
         #######################
         #   the main frequency plot
@@ -635,7 +593,7 @@ class TunerApp(QtWidgets.QMainWindow):
         self.plot_main_frequency_data_item = self.plot_freq.plot(
             x=self.main_frequency_plot_time,
             y=self.main_frequency_plot_data,
-            pen={'color': '#F00', 'width': 3}
+            pen=config.MAIN_FREQUENCY_PLOT_STYLE
         )
 
     def update_signal_plot(self):
@@ -647,63 +605,45 @@ class TunerApp(QtWidgets.QMainWindow):
         #   the Fourier plot
         #######################
         data_for_FT = raw_data[::self.sample_rate_fac]
-        ft_w1 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t,
-                                                                    2 * np.pi * self.fourier_plot_w1)
-        ft_w2 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t,
-                                                                    2 * np.pi * self.fourier_plot_w2)
-        ft_w3 = 1 / self.fourier_plot_tmax * util.fourier_int_array(data_for_FT, self.fourier_plot_t,
-                                                                    2 * np.pi * self.fourier_plot_w3)
-
-        ft_w1_abs = np.abs(ft_w1)
-        ft_w2_abs = np.abs(ft_w2)
-        ft_w3_abs = np.abs(ft_w3)
         sig_max = np.max(np.abs(data_for_FT))
         if sig_max == 0:
             return
 
-        self.plot_fourier_w1_data_item.setData(
-            x=self.fourier_plot_w1 - self.target_freq,
-            y=ft_w1_abs / sig_max
-        )
-        self.plot_fourier_w2_data_item.setData(
-            x=self.fourier_plot_w2 - 2 * self.target_freq,
-            y=ft_w2_abs / sig_max
-        )
-        self.plot_fourier_w3_data_item.setData(
-            x=self.fourier_plot_w3 - 3 * self.target_freq,
-            y=ft_w3_abs / sig_max
-        )
+        scale = 0
+        wmax_list = []
+        wmax_0 = None
+        for n in range(0, config.FOURIER_PLOT_NUMBER_OF_HIGHER_HARMONICS):
+            ft_w = 1 / self.fourier_plot_tmax * util.fourier_int_array(
+                data_for_FT, self.fourier_plot_t, 2 * np.pi * self.fourier_plots_w_axes[n]
+            )
+            ft_w_abs = np.abs(ft_w)
+            self.fourier_plots_data_items_FT[n].setData(
+                x=self.fourier_plots_w_axes[n] - (n+1)*self.target_freq,
+                y=ft_w_abs / sig_max
+            )
+            scale = max(scale, np.max(ft_w_abs))
+            idx = np.argmax(ft_w_abs)
+            wmax_list.append(self.fourier_plots_w_axes[n][idx] - (n+1)*self.target_freq)
+            if n == 0:
+                wmax_0 = self.fourier_plots_w_axes[n][idx]
 
-        idx1 = np.argmax(ft_w1_abs)
-        idx2 = np.argmax(ft_w2_abs)
-        idx3 = np.argmax(ft_w3_abs)
-        scale = ft_w1_abs[idx1] * 1.1 / sig_max
-        w1_max = self.fourier_plot_w1[idx1] - self.target_freq
-        w2_max = self.fourier_plot_w2[idx2] - 2 * self.target_freq
-        w3_max = self.fourier_plot_w3[idx3] - 3 * self.target_freq
-        self.plot_fourier_v1_data_item.setData(
-            x=[w1_max, w1_max],
-            y=[0, scale]
-        )
-        self.plot_fourier_v2_data_item.setData(
-            x=[w2_max, w2_max],
-            y=[0, scale]
-        )
-        self.plot_fourier_v3_data_item.setData(
-            x=[w3_max, w3_max],
-            y=[0, scale]
-        )
+        scale /= sig_max
+        for n in range(0, config.FOURIER_PLOT_NUMBER_OF_HIGHER_HARMONICS):
 
+            self.fourier_plots_data_items_vert[n].setData(
+                x=[wmax_list[n], wmax_list[n]],
+                y=[0, scale]
+            )
 
+        omg_guess = wmax_0
         try:
             omg_fit, amp, phi, r = util.fit_harmonic_function(
                 signal_t=raw_data,
                 t=self.buf.t,
-                omg_guess=2*np.pi*self.fourier_plot_w1[idx1],
+                omg_guess=2*np.pi*omg_guess,
                 N=config.NUMBER_OF_HIGHER_HARMONICS,
                 kwargs_least_squares={'max_nfev': config.LEAST_SQUARES_MAX_NFEV}
             )
-            #print(r.optimality, r.nfev)
             phi0 = phi[0] % (2*np.pi)
             T = 2*np.pi / omg_fit
             t_sh = 3*T/4 - phi0 / omg_fit
@@ -741,7 +681,7 @@ class TunerApp(QtWidgets.QMainWindow):
                 self.plot_signal_fit_plot_data_item = self.plot_signal.plot(
                     x=self.signal_plot_time_ms,
                     y=sig_fit_t,
-                    pen={'color': '#F00', 'width': 3}
+                    pen=config.SIGNAL_PLOT_STYLE_FIT
                 )
             else:
                 self.plot_signal_fit_plot_data_item.setData(
@@ -767,7 +707,16 @@ class TunerApp(QtWidgets.QMainWindow):
 
         t1 = time.perf_counter_ns()
         dt = (t1 - t0) / 10**6
-        self.permanent_status_label.setText("plotting takes {:.2f}ms".format(dt))
+
+        self.plotting_time_max = max(self.plotting_time_max, dt)
+        self.plotting_time_accum += dt
+        self.plotting_time_cnt += 1
+
+        self.permanent_status_label.setText(
+            "time for plot update (now: {:.2f}ms, max: {:.2f}ms avrg: {:.2f}ms)".format(
+                dt, self.plotting_time_max, self.plotting_time_accum/self.plotting_time_cnt
+            )
+        )
         if dt > self.plot_refresh_time_in_ms:
             warnings.warn("plotting takes longer that refresh time, timer too fast")
 
