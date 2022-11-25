@@ -309,18 +309,18 @@ class TunerApp(QtWidgets.QMainWindow):
         self.plot_fourier = self.grWidget.addPlot(row=0, col=0)
         self.plot_fourier.setLabel(
             'left',
-            'shifted finite Fourier integral f(&omega; - n&omega;<sub>0</sub>)',
+            'shifted finite Fourier integral f(&omega; - n&Omega;)',
         )
         self.plot_fourier.setLabel(
             'bottom',
-            'shifted frequency &omega; - n&omega;<sub>0</sub>',
+            'shifted frequency &omega; - n&Omega;',
         )
         # self.plot_fourier.setYRange(0, 1, padding=0.01)
         # the plot of the fitted base frequency over time
         self.plot_freq = self.grWidget.addPlot(row=0, col=1)
         self.plot_freq.setLabel(
             'left',
-            'relative diff. of fitted frequency &omega;, i.e., (&omega; - &omega;<sub>0</sub>)  / &omega;<sub>0</sub>'
+            'relative diff. of fitted base frequency &omega;<sub>1</sub>, i.e., (&omega;<sub>1</sub> - &Omega;)  / &Omega;'
         )
         self.plot_freq.setLabel(
             'bottom',
@@ -658,6 +658,8 @@ class TunerApp(QtWidgets.QMainWindow):
         ft_w2_abs = np.abs(ft_w2)
         ft_w3_abs = np.abs(ft_w3)
         sig_max = np.max(np.abs(data_for_FT))
+        if sig_max == 0:
+            return
 
         self.plot_fourier_w1_data_item.setData(
             x=self.fourier_plot_w1 - self.target_freq,

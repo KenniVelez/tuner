@@ -2,7 +2,16 @@
 name = "tuner"
 version = "0.1.0"
 description = "analyse mic input (frequency analysis) to be used to tune instruments"
-authors = ["Richard Hartmann"]
+authors = [
+    { name="Richard Hartmann", email="richard_hartmann@gmx.de" },
+]
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Environment :: X11 Applications :: Qt",
+    "Topic :: Multimedia :: Sound/Audio :: Analysis",
+]
 
 [tool.poetry.dependencies]
 python = "~3.9"
